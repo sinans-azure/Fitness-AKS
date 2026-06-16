@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fitness-tracker-app
+  namespace: default # Deployed to default namespace as requested
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fitness-tracker-app
+  template:
+    metadata:
+      labels:
+        app: fitness-tracker-app
+        azure.workload.identity/use: "true" # Required to tell AKS to inject the Workload Identity webhook
+    spec:
+      serviceAccountName: fitness-app-sa # The service account we created in step 2
+      containers:
+        - name: fitness-tracker-app
+          image: pulkit197/fitness_tracker-master-copy3-fitness-app:latest
+          ports:
+            - containerPort: 5000
+          resources:
+            limits:
+              memory: "512Mi"
+              # cpu: "200m" 
+            requests:
+              memory: "256Mi" 
+              # cpu: "100m"
+          # Here we load the environment variables synced from Key Vault
+          envFrom:
+            - secretRef:
+                name: fitness-app-env-secret
+          env:
+            - name: PORT
+              value: "5000"
+            - name: HOST
+              value: "0.0.0.0"
+            - name: NODE_ENV
+              value: "production"
+          volumeMounts:
+            - name: secrets-store-inline
+              mountPath: "/mnt/secrets-store"
+              readOnly: true
+      volumes:
+        - name: secrets-store-inline
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: "azure-kv-fitness-app"
